@@ -1,0 +1,79 @@
+{
+    "name": "citomni/image",
+    "description": "Deterministic, reusable image inspection, transformation and encoding for CitOmni applications and packages.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "citomni",
+        "php",
+        "image",
+        "image-processing",
+        "gd",
+        "image-resize",
+        "image-crop",
+        "image-conversion",
+        "webp",
+        "avif",
+        "jpeg",
+        "png",
+        "exif",
+        "thumbnails",
+        "high-performance",
+        "low-overhead"
+    ],
+    "homepage": "https://github.com/citomni/image",
+    "support": {
+        "email": "lars@grove-mortensen.dk",
+        "issues": "https://github.com/citomni/image/issues",
+        "source": "https://github.com/citomni/image",
+        "docs": "https://github.com/citomni/image/blob/main/README.md",
+        "security": "https://github.com/citomni/.github/blob/main/SECURITY.md"
+    },
+    "require": {
+        "php": "^8.5",
+        "ext-gd": "*",
+        "ext-zlib": "*",
+        "citomni/kernel": "^1.0"
+    },
+    "suggest": {
+        "ext-imagick": "Second image backend: HEIC, TIFF and GIF output, plus AVIF where GD lacks it. Codec support is verified at runtime."
+    },
+    "autoload": {
+        "psr-4": {
+            "CitOmni\\Image\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "CitOmni\\Image\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": [
+            "@php tests/geometry_test.php",
+            "@php tests/header_test.php",
+            "@php tests/service_test.php",
+            "@php tests/write_test.php",
+            "@php tests/imagick_test.php",
+            "@php tests/color_test.php"
+        ]
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "extra": {
+        "branch-alias": {
+            "dev-main": "1.0.x-dev"
+        }
+    },
+    "authors": [
+        {
+            "name": "Lars Grove Mortensen",
+            "email": "lars@grove-mortensen.dk",
+            "homepage": "https://www.citomni.com",
+            "role": "Developer"
+        }
+    ]
+}

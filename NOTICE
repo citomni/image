@@ -1,0 +1,23 @@
+citomni/image - CitOmni provider package
+Copyright (c) 2012-present Lars Grove Mortensen
+Licensed under the MIT License (see LICENSE).
+
+------------------------------------------------------------
+Third-Party
+------------------------------------------------------------
+This package targets the CitOmni Framework, which is licensed separately under
+the MIT License.
+
+The ICC profiles embedded in src/Color/Profiles.php (sRGB-v4.icc,
+DisplayP3-v4.icc) and in tests/Support/IccFixtures.php are from the Compact ICC
+Profiles project by Clinton Ingram, dedicated to the public domain under
+CC0 1.0 Universal: https://github.com/saucecontrol/Compact-ICC-Profiles
+
+------------------------------------------------------------
+Trademarks
+------------------------------------------------------------
+Trademark rights are separate from copyright and open-source license rights.
+See TRADEMARKS.md for the CitOmni trademark notice applicable to this package.
+
+For questions about this software's license, contact the copyright holder named
+above.
