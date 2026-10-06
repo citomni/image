@@ -33,7 +33,7 @@
         "php": "^8.5",
         "ext-gd": "*",
         "ext-zlib": "*",
-        "citomni/kernel": "^1.0.2.2"
+        "citomni/kernel": "^1.0.2.4"
     },
     "suggest": {
         "ext-imagick": "Second image backend: HEIC, TIFF and GIF output, plus AVIF where GD lacks it. Codec support is verified at runtime."
