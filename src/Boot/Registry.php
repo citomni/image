@@ -52,6 +52,7 @@ final class Registry {
 	 */
 	public const array MAP_COMMON = [
 		'image' => \CitOmni\Image\Service\Image::class,
+		'captchaImage' => \CitOmni\Image\Service\CaptchaImage::class,
 	];
 
 	/**
@@ -120,6 +121,34 @@ final class Registry {
 			],
 			'heic' => [
 				'quality' => 75,       // 0-100
+			],
+
+			// CaptchaImage defaults; code(), create() and render() take per-call
+			// overrides. See Service\CaptchaImage.
+			'captcha' => [
+				// Characters a generated code is drawn from. Groups that are easy to
+				// confuse once distorted are left out entirely: 0/O/Q/D, 1/I, 2/Z,
+				// 5/S, 6/G, 8/B, U/V. Answers are compared case-insensitively.
+				'alphabet' => 'ACEFHJKLMNPRTWXY3479',
+				'length' => 5,
+
+				// Output size in pixels. For high-density screens, render at twice
+				// the size and set the <img> width and height to the 1x size.
+				'width' => 200,
+				'height' => 64,
+
+				'background' => '#f1f5f8',
+
+				// Ink colors; one is picked per image and used for the text and the
+				// interference curve alike, so color cannot separate them.
+				'colors' => ['#1e293b', '#0d47a1', '#7f1d1d', '#14532d', '#4a148c'],
+
+				// TrueType/OpenType files; one is picked per glyph. Lists are
+				// replaced, not merged, by host config.
+				'fonts' => [
+					__DIR__ . '/../../assets/fonts/Roboto-Regular.ttf',
+					__DIR__ . '/../../assets/fonts/RobotoSlab-Regular.ttf',
+				],
 			],
 		],
 	];

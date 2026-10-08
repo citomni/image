@@ -22,10 +22,12 @@ declare(strict_types=1);
  *   actual GD/ImageMagick build there is tested through the package code.
  *
  * Usage:
- * 1) Upload the package's src/ and tests/ directories (tests are not part of
- *    the Composer dist archive) to a non-public or temporary web directory.
+ * 1) Upload the package's src/, assets/ and tests/ directories (tests are not
+ *    part of the Composer dist archive) to a non-public or temporary web
+ *    directory.
  * 2) Set RUNNER_ENABLED to true below.
- * 3) Open run-tests.php?test=imagick (or geometry, header, service, write, color).
+ * 3) Open run-tests.php?test=imagick (or geometry, header, service, write,
+ *    color, captcha).
  * 4) Set RUNNER_ENABLED back to false and delete the uploaded files.
  *
  * Notes:
@@ -35,7 +37,7 @@ declare(strict_types=1);
  */
 
 const RUNNER_ENABLED = false;
-const RUNNER_TESTS = ['geometry', 'header', 'service', 'write', 'imagick', 'color'];
+const RUNNER_TESTS = ['geometry', 'header', 'service', 'write', 'imagick', 'color', 'captcha'];
 
 if (!\headers_sent()) {
 	\header('Content-Type: text/plain; charset=UTF-8');

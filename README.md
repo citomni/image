@@ -10,6 +10,8 @@ The public contract is backend-independent. Callers work with source paths or by
 
 In practical terms, `citomni/image` lets an application turn one source image into a large WebP, a square JPEG thumbnail, or in-memory encoded variants without teaching each consumer the finer points of EXIF orientation, alpha flattening, format limits, truncation checks, or runtime codec support.
 
+A second service, `captchaImage`, generates captcha codes and renders them as distorted PNG images. In HTTP apps, the `captcha` service in [citomni/http](https://github.com/citomni/http) runs the challenge itself (session, one attempt per challenge, expiry) on top of it.
+
 ---
 
 ## Highlights
@@ -33,6 +35,7 @@ In practical terms, `citomni/image` lets an application turn one source image in
 - **Explicit partial-commit reporting** through `ImageWriteException` and `ImageTargetExistsException`.
 - **No hidden format substitution** when a requested codec is unavailable or broken.
 - **Low-overhead file processing** where file sources are decoded directly from the file rather than copied into a large PHP string first.
+- **Captcha images** through `$this->app->captchaImage`: CSPRNG codes from an alphabet without look-alike characters, crowded and warped glyphs crossed by a curve in their own ink, 64-color PNG output of a few KB, and constant-time answer checks.
 
 ---
 
@@ -149,6 +152,10 @@ Existing targets are not replaced unless an output sets `'overwrite' => true`. S
 
 A failure during the commit phase raises `ImageWriteException` (or `ImageTargetExistsException`), which reports exactly which outputs were committed and which were left untouched.
 
+### Captcha images
+
+`captchaImage->code()` draws a random code, `captchaImage->render()` renders a code as a PNG, `captchaImage->create()` does both, and `captchaImage->verify()` compares an answer with the expected code. The service keeps no state between requests: the challenge lifecycle and the image route live in citomni/http. See [Captcha](#captcha).
+
 ---
 
 ## What this package owns
@@ -173,6 +180,7 @@ That includes:
 - Output verification.
 - Two-phase file writes.
 - Image-specific exception semantics.
+- Captcha codes, captcha rendering, and answer comparison.
 
 The package owns the image operation, not the application's reason for performing it.
 
@@ -188,6 +196,7 @@ It does **not** own:
 - `$_FILES`.
 - Upload error codes.
 - Form validation.
+- Captcha state between requests, the image route, and form checks. citomni/http provides them.
 - CSRF.
 - Database access.
 - SQL.
@@ -242,6 +251,7 @@ This is why the service lives in a dedicated package instead of being embedded i
 - `citomni/kernel` **^1.0**
 - PHP `ext-gd`
 - PHP `ext-zlib` (embedded PNG ICC profiles are zlib-compressed)
+- For the `captchaImage` service: GD built with FreeType. Most builds include it; Docker's official PHP images need `docker-php-ext-configure gd --with-freetype` before `docker-php-ext-install gd`. Without FreeType, captcha rendering fails with `ImageCapabilityException`.
 - Optional: PHP `ext-imagick` (second backend: HEIC, TIFF, GIF output, AVIF where GD lacks it, and color management through ImageMagick's LittleCMS delegate)
 
 GD is the baseline image engine. Imagick is used automatically for jobs GD cannot perform, when it is installed.
@@ -273,10 +283,11 @@ return [
 ];
 ```
 
-The package registers the service in both HTTP and CLI mode:
+The package registers two services in both HTTP and CLI mode:
 
 ```php
 $this->app->image
+$this->app->captchaImage
 ```
 
 No routes or CLI commands are contributed by the package.
@@ -348,6 +359,15 @@ $this->app->image->encode($sourcePath, $outputs, $options);
 $this->app->image->encodeString($sourceData, $outputs, $options);
 
 $this->app->image->capabilities();
+```
+
+The captcha image service exposes:
+
+```php
+$this->app->captchaImage->code($options);
+$this->app->captchaImage->render($code, $options);
+$this->app->captchaImage->create($options);
+$this->app->captchaImage->verify($expected, $answer);
 ```
 
 The public API uses paths, bytes, declarative arrays, and result arrays.
@@ -1325,6 +1345,7 @@ Typical causes include:
 - First-frame decoding is unavailable for the requested source.
 - Color conversion is required (policy `srgb`) but no backend provides color management, or the source's color description cannot be applied.
 - An encoder claims support but produces output that fails verification, including output labeled with a color space other than sRGB.
+- The `captchaImage` service needs GD with FreeType, and the runtime lacks it. There is no fallback to GD's bitmap fonts.
 
 The package never silently substitutes another format.
 
@@ -1368,12 +1389,101 @@ Used for developer misuse such as:
 - Invalid quality or compression settings.
 - Invalid overlay specifications.
 - Duplicate target paths in one save job.
+- Invalid captcha options or codes, and captcha sizes too small for legible glyphs.
 
 ### `RuntimeException`
 
-Used for ordinary IO or backend failures that are not rejected image content or capability mismatches.
+Used for ordinary IO or backend failures that are not rejected image content or capability mismatches, including a captcha font file that is missing or that FreeType cannot load.
 
 CitOmni's normal fail-fast policy applies.
+
+---
+
+## Captcha
+
+The `captchaImage` service generates captcha codes and their pictures. It is separate from the `image` service: it draws with GD and FreeType directly and shares only `image.max_pixels` and `image.png.compression` with the processing pipeline. It keeps no state between requests.
+
+### In HTTP apps
+
+Use the `captcha` service in [citomni/http](https://github.com/citomni/http). It issues challenges, keeps their codes in the session, serves the image through an opt-in `CaptchaController`, and verifies the form post with one attempt per challenge and an expiry. It calls this service for the code, the picture, and the comparison. The steps are in the citomni/http README.
+
+The rest of this section describes `captchaImage` itself, for that lifecycle and for use outside it.
+
+### Codes and images
+
+```php
+$code = $this->app->captchaImage->code();
+$png  = $this->app->captchaImage->render($code, ['seed' => $seed]);
+$ok   = $this->app->captchaImage->verify($code, $answer);
+```
+
+- `code()` draws `image.captcha.length` characters, each uniformly from `image.captcha.alphabet` with PHP's CSPRNG.
+- `render()` draws a given code. With a stored `seed` it draws the same image on every request, so reloading the image gives an attacker no second distortion to compare.
+- `create()` draws a code and renders it in one call.
+
+Image results have this shape; `create()` adds `'code'` in front:
+
+```php
+[
+	'data' => $pngBytes,
+	'format' => 'png',
+	'mime' => 'image/png',
+	'width' => 200,
+	'height' => 64,
+	'bytes' => 3912,
+]
+```
+
+Keep codes on the server and never send them to the client. A code must be consumed after one check, whatever the outcome; otherwise one solved image passes any number of submissions. citomni/http does that.
+
+### Options
+
+`code()`, `create()` and `render()` take per-call overrides of the `image.captcha` configuration:
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `alphabet` | string | `ACEFHJKLMNPRTWXY3479` | `code()` and `create()`. At least two distinct characters, without whitespace or control characters. |
+| `length` | int 1-64 | `5` | `code()` and `create()`. Number of characters. |
+| `width`, `height` | int | `200`, `64` | `create()` and `render()`. Output size in pixels. |
+| `background` | `#rrggbb` | `#f1f5f8` | `create()` and `render()`. Background color. |
+| `colors` | list of `#rrggbb` | five dark inks | `create()` and `render()`. Ink colors; one is picked per image. |
+| `fonts` | list of paths | bundled Roboto and Roboto Slab | `create()` and `render()`. TrueType/OpenType files; one is picked per glyph. |
+| `seed` | int | random | `render()` only. Makes the distortion reproducible on the same GD and FreeType build. |
+
+`render($code)` draws a code the application chose, for example `render('7+3')` with the expected answer `10`. Each Unicode code point is one glyph; whitespace and control characters are rejected.
+
+For high-density screens, render at twice the size and keep the `<img>` at the 1x size, for example with `'width' => 400, 'height' => 128` in `image.captcha` and `width="200" height="64"` on the `<img>`.
+
+A dark theme needs only other colors:
+
+```php
+$png = $this->app->captchaImage->render($code, ['background' => '#101418', 'colors' => ['#f5f5f5']]);
+```
+
+### Rendering
+
+1. Glyphs are laid out crowded together, each with a random font, size, rotation (up to 16 degrees), and baseline. Spacing uses each glyph's measured ink, so it does not depend on how a GD build computes text bounding boxes.
+2. The block is scaled down until it fits the canvas with room for the warp. When glyphs would end up less than 10 output pixels tall, rendering fails with `InvalidArgumentException`.
+3. Glyphs and one interference curve are drawn in a single ink color, so color cannot separate the curve from the text. The curve runs diagonally and is thinner than the glyph stems: a level line through the middle would turn F into E for human readers too.
+4. The text is warped by a vertical and a horizontal sine wave.
+5. It is composed over a background with low-contrast blobs, lines, and speckles.
+6. Everything is drawn at twice the output size, downsampled once, and encoded as a 64-color palette PNG (about 4 KB at 200x64).
+
+Distortion is random per image. `render()` with a `seed` reproduces an image exactly on the same GD and FreeType build. `create()` takes no seed, and a seed never affects a code.
+
+### Verification
+
+`verify($expected, $answer)`:
+
+- Removes all Unicode whitespace from both values and uppercases ASCII letters, so `" k7 mpx "` matches `K7MPX`.
+- Never accepts an empty expected code or invalid UTF-8.
+- Compares with `hash_equals()`.
+
+Because answers are compared case-insensitively, an alphabet should not rely on case.
+
+### Limits
+
+A text captcha stops generic bots that fill in every form they find. It does not stop a targeted attacker: current OCR and vision models read distorted text, and solving services are cheap. It also excludes users who cannot solve visual challenges, and WCAG 1.1.1 asks for an alternative. Use it as one layer next to honeypot fields, rate limiting, and server-side validation, and offer another way to reach you where accessibility matters.
 
 ---
 
@@ -1417,6 +1527,20 @@ Current defaults:
 
 	'heic' => [
 		'quality' => 75,
+	],
+
+	'captcha' => [
+		'alphabet' => 'ACEFHJKLMNPRTWXY3479',
+		'length' => 5,
+		'width' => 200,
+		'height' => 64,
+		'background' => '#f1f5f8',
+		'colors' => ['#1e293b', '#0d47a1', '#7f1d1d', '#14532d', '#4a148c'],
+		'fonts' => [
+			// Paths to the files bundled in this package's assets/fonts/.
+			'.../assets/fonts/Roboto-Regular.ttf',
+			'.../assets/fonts/RobotoSlab-Regular.ttf',
+		],
 	],
 ],
 ```
@@ -1521,6 +1645,15 @@ Default lossy quality:
 ],
 ```
 
+### `captcha`
+
+Defaults of the `captchaImage` service; every key also exists as a per-call option (see [Captcha](#captcha)).
+
+- `alphabet` leaves out groups that are easy to confuse once distorted: 0/O/Q/D, 1/I, 2/Z, 5/S, 6/G, 8/B, U/V. Twenty characters and length 5 give 3.2 million codes.
+- `colors` and `fonts` are lists and are replaced, not merged, by host config.
+- The bundled fonts are Roboto and Roboto Slab under the Apache License 2.0 (see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)).
+- `width` x `height` at twice the size must fit `image.max_pixels`.
+
 ---
 
 ## Backend model
@@ -1589,6 +1722,7 @@ Current design choices include:
 - Orientation is applied after resampling where the geometry permits it, avoiding unnecessary full-resolution rotation work.
 - Overlay sources are decoded once per job and resampled once per distinct overlay size.
 - With the default backend order, GD handles ordinary work; Imagick is used only when a job needs it. On a 12 MP JPEG the same three-output job measured roughly 0.8 s on GD and 1.0 s on Imagick in the development environment.
+- A captcha image at the default 200x64 takes about 5 ms and 1.5 MB peak memory (PHP 8.5 CLI without OPcache, measured with a new service instance per image, as in an HTTP request). Glyph ink is measured once per font and glyph per service instance; the warp and composition touch only the region that holds ink.
 
 JPEG shrink-on-load (decoding at 1/2, 1/4, or 1/8 scale) is intentionally not used yet: choosing one decode scale for the whole job would make a thumbnail's pixels depend on which larger siblings were requested. It can be added per output scale without breaking sibling independence.
 
@@ -1643,9 +1777,10 @@ tests/service_test.php
 tests/write_test.php
 tests/imagick_test.php
 tests/color_test.php
+tests/captcha_test.php
 ```
 
-`service_test.php` and `write_test.php` pin the GD backend. `imagick_test.php` covers the Imagick backend and GD/Imagick parity, and skips itself when `ext-imagick` is not loaded. Its HEIC container tests use the runtime's HEIC encoder when present and the embedded HEIC sample on decode-only builds. `color_test.php` covers ICC classification, profile extraction for every container, the color policy on GD, and conversions on Imagick checked against LittleCMS reference values; its Imagick part skips without ext-imagick or LittleCMS.
+`service_test.php` and `write_test.php` pin the GD backend. `imagick_test.php` covers the Imagick backend and GD/Imagick parity, and skips itself when `ext-imagick` is not loaded. Its HEIC container tests use the runtime's HEIC encoder when present and the embedded HEIC sample on decode-only builds. `color_test.php` covers ICC classification, profile extraction for every container, the color policy on GD, and conversions on Imagick checked against LittleCMS reference values; its Imagick part skips without ext-imagick or LittleCMS. `captcha_test.php` covers the `captchaImage` service; without FreeType it checks only that rendering fails explicitly.
 
 The suite covers areas including:
 
@@ -1669,6 +1804,7 @@ The suite covers areas including:
 - Colorspace normalization (YCbCr, CMYK).
 - ICC classification (including corrupted profiles), embedded-profile extraction (JPEG multi-segment, PNG, WebP, TIFF, GIF, HEIF), and color conversion against LittleCMS references.
 - GD/Imagick parity of geometry, pixels, and alpha.
+- Captcha cfg and option validation, codes with and without images, code randomness and alphabet coverage, palette PNG output, seeded determinism, glyph placement checked against real FreeType rendering (no glyph reaches the warp margin), and answer verification.
 
 Diagnostic capability probes live separately under:
 
@@ -1684,12 +1820,12 @@ They are useful for understanding a concrete server's image stack and are not a 
 
 `tests/probes/run-tests.php` runs the real regression scripts through the web server, so the server's actual GD/ImageMagick build is tested through the package code:
 
-1. Upload the package's `src/` and `tests/` directories (tests are not part of the Composer dist archive) to a non-public or temporary web directory.
+1. Upload the package's `src/`, `assets/`, and `tests/` directories (tests are not part of the Composer dist archive) to a non-public or temporary web directory.
 2. Set `RUNNER_ENABLED` to `true` in the runner.
-3. Open `run-tests.php?test=imagick` (or `geometry`, `header`, `service`, `write`).
+3. Open `run-tests.php?test=imagick` (or `geometry`, `header`, `service`, `write`, `color`, `captcha`).
 4. Set `RUNNER_ENABLED` back to `false` and delete the uploaded files.
 
-The runner refuses to run while disabled, accepts only the five known test names, and prints the failing check with its location.
+The runner refuses to run while disabled, accepts only the known test names, and prints the failing check with its location.
 
 For syntax validation during development:
 
@@ -1707,6 +1843,11 @@ On Windows `.cmd` or `.bat` files, use `%%f` instead of `%f`.
 Current source layout:
 
 ```text
+assets/
+└── fonts/
+    ├── LICENSE-APACHE-2.0.txt
+    ├── Roboto-Regular.ttf
+    └── RobotoSlab-Regular.ttf
 src/
 ├── Backend/
 │   ├── GdBackend.php
@@ -1728,6 +1869,7 @@ src/
 │   ├── ImageTargetExistsException.php
 │   └── ImageWriteException.php
 ├── Service/
+│   ├── CaptchaImage.php
 │   └── Image.php
 └── Util/
     ├── Geometry.php
@@ -1738,6 +1880,7 @@ src/
 The boundaries are intentional:
 
 - `Service/Image.php` owns the public App-facing contract, validation, planning, backend selection, capability gating, output verification, and write transaction semantics.
+- `Service/CaptchaImage.php` owns captcha codes, rendering with GD and FreeType, and answer comparison. It does not use the backends: drawing text is not part of the backend contract, and GD is always present.
 - `Backend/` owns engine-specific pixel operations and codecs.
 - `Enum/` owns stable bounded public vocabulary.
 - `Exception/` owns package-specific failure semantics.

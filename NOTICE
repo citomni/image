@@ -13,6 +13,17 @@ DisplayP3-v4.icc) and in tests/Support/IccFixtures.php are from the Compact ICC
 Profiles project by Clinton Ingram, dedicated to the public domain under
 CC0 1.0 Universal: https://github.com/saucecontrol/Compact-ICC-Profiles
 
+The font files used for captcha rendering are redistributed under the Apache
+License, Version 2.0, whose text is included in
+assets/fonts/LICENSE-APACHE-2.0.txt:
+ - assets/fonts/Roboto-Regular.ttf: Roboto, Copyright 2011 Google Inc.
+ - assets/fonts/RobotoSlab-Regular.ttf: Roboto Slab, Copyright 2018 The Roboto
+   Slab Project Authors (https://github.com/googlefonts/robotoslab)
+
+The bundled fonts are runtime assets only. They remain licensed by their
+respective copyright holders and do not change the license of this package's
+source code. See THIRD-PARTY-NOTICES.md.
+
 ------------------------------------------------------------
 Trademarks
 ------------------------------------------------------------

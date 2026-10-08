@@ -1,6 +1,6 @@
 {
     "name": "citomni/image",
-    "description": "Deterministic, reusable image inspection, transformation and encoding for CitOmni applications and packages.",
+    "description": "Deterministic, reusable image inspection, transformation and encoding, plus captcha rendering, for CitOmni applications and packages.",
     "type": "library",
     "license": "MIT",
     "keywords": [
@@ -18,6 +18,7 @@
         "png",
         "exif",
         "thumbnails",
+        "captcha",
         "high-performance",
         "low-overhead"
     ],
@@ -55,7 +56,8 @@
             "@php tests/service_test.php",
             "@php tests/write_test.php",
             "@php tests/imagick_test.php",
-            "@php tests/color_test.php"
+            "@php tests/color_test.php",
+            "@php tests/captcha_test.php"
         ]
     },
     "config": {
