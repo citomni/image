@@ -1768,19 +1768,23 @@ Run the regression suite with:
 composer test
 ```
 
-The current Composer test script runs:
+This runs `php tests/run.php`, which runs every suite under `tests/` in its own PHP process, in alphabetical order, and ends with a total line. The suites are:
 
 ```text
-tests/geometry_test.php
-tests/header_test.php
-tests/service_test.php
-tests/write_test.php
-tests/imagick_test.php
-tests/color_test.php
-tests/captcha_test.php
+tests/captcha/run.php
+tests/color/run.php
+tests/geometry/run.php
+tests/header/run.php
+tests/imagick/run.php
+tests/service/run.php
+tests/write/run.php
 ```
 
-`service_test.php` and `write_test.php` pin the GD backend. `imagick_test.php` covers the Imagick backend and GD/Imagick parity, and skips itself when `ext-imagick` is not loaded. Its HEIC container tests use the runtime's HEIC encoder when present and the embedded HEIC sample on decode-only builds. `color_test.php` covers ICC classification, profile extraction for every container, the color policy on GD, and conversions on Imagick checked against LittleCMS reference values; its Imagick part skips without ext-imagick or LittleCMS. `captcha_test.php` covers the `captchaImage` service; without FreeType it checks only that rendering fails explicitly.
+A single suite runs alone, for example `php tests/service/run.php`. The suites are CLI only and need no Composer autoloader, no database and no environment variables. Each has a README with its commands and expected totals.
+
+Output is one `PASS <name>` line per case on STDOUT, `FAIL <name> - <message>` on STDERR and `SKIP <reason>` for optional cases. The last line is `N passed, M failed[, K skipped]`, and the exit code is not 0 when anything failed.
+
+The `service` and `write` suites pin the GD backend. `imagick` covers the Imagick backend and GD/Imagick parity, and reports a SKIP when `ext-imagick` is not loaded. Its HEIC container tests use the runtime's HEIC encoder when present and the embedded HEIC sample on decode-only builds. `color` covers ICC classification, profile extraction for every container, the color policy on GD, and conversions on Imagick checked against LittleCMS reference values; its Imagick part reports a SKIP without ext-imagick or LittleCMS. `captcha` covers the `captchaImage` service; without FreeType it checks only that rendering fails explicitly.
 
 The suite covers areas including:
 
@@ -1815,17 +1819,6 @@ tests/probes/
 They are useful for understanding a concrete server's image stack and are not a replacement for regression tests.
 
 `tests/probes/imagick-heif-stream-probe.php` answers one specific question for the current runtime: can ImageMagick decode HEIC/AVIF from a PHP stream? Neither ImageMagick 6 nor 7 can (verified on 6.9.12 and 7.1.1: the HEIF coder opens the file by name), which is why the Imagick backend reads HEIF files into memory first.
-
-### Running the suite on a server without shell access
-
-`tests/probes/run-tests.php` runs the real regression scripts through the web server, so the server's actual GD/ImageMagick build is tested through the package code:
-
-1. Upload the package's `src/`, `assets/`, and `tests/` directories (tests are not part of the Composer dist archive) to a non-public or temporary web directory.
-2. Set `RUNNER_ENABLED` to `true` in the runner.
-3. Open `run-tests.php?test=imagick` (or `geometry`, `header`, `service`, `write`, `color`, `captcha`).
-4. Set `RUNNER_ENABLED` back to `false` and delete the uploaded files.
-
-The runner refuses to run while disabled, accepts only the known test names, and prints the failing check with its location.
 
 For syntax validation during development:
 

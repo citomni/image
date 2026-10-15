@@ -17,10 +17,13 @@ declare(strict_types=1);
  * End-to-end checks for the Image service pinned to the GD backend:
  * inspection, capabilities, orientation, geometry, alpha, overlays, input
  * policy, request validation, determinism, sibling independence, and
- * decode/resample counts. Imagick and cross-backend parity: imagick_test.php.
+ * decode/resample counts. Imagick and cross-backend parity: tests/imagick/run.php.
+ *
+ * Usage:
+ *   php tests/service/run.php
  */
 
-require __DIR__ . '/bootstrap.php';
+require \dirname(__DIR__) . '/bootstrap.php';
 
 use CitOmni\Image\Exception\ImageCapabilityException;
 use CitOmni\Image\Exception\ImageInputException;
@@ -430,4 +433,4 @@ check($lossyCaps['decode']['png'] === 'gd', 'alpha loss withdraws encode support
 expectThrows(ImageCapabilityException::class, static fn() => $lossy->encodeString($plain, ['o' => ['format' => 'png']]), 'job refuses the alpha-losing encoder instead of writing opaque png');
 CountingBackend::reset();
 
-done('service_test');
+done();

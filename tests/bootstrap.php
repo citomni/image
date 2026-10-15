@@ -14,16 +14,26 @@ declare(strict_types=1);
  */
 
 /*
- * Shared bootstrap for citomni/image regression scripts.
+ * Shared bootstrap for the citomni/image suites under tests/<suite>/run.php.
  *
- * Run a script directly, e.g. `php tests/service_test.php`, or all of them
- * with `composer test`. Scripts exit non-zero on the first failed check.
- * On servers without CLI access, use tests/probes/run-tests.php.
+ * Run one suite directly, e.g. `php tests/service/run.php`, or all of them
+ * with `php tests/run.php` (also `composer test`). Every suite is CLI only,
+ * runs in its own process, and ends with a "N passed, M failed[, K skipped]"
+ * line; the exit code is 1 when anything failed.
  *
  * Provides:
  * - A minimal BaseService double, so the Kernel package need not be installed.
  * - A PSR-4 autoloader for src/ and tests/.
- * - check(), expectThrows(), testApp(), and tempDir() helpers.
+ * - Reporting: check(), expectThrows(), skip(), and done(), on top of pass()
+ *   and fail().
+ * - testApp(), tempDir(), and the image helpers.
+ *
+ * Notes:
+ * - The error handler throws ErrorException for every error except those the
+ *   @ operator silences. src/ silences decoder warnings on purpose and reads
+ *   the false return, so those must reach the code unchanged.
+ * - A failed check is reported and the suite goes on. An uncaught exception
+ *   ends the suite with one FAIL line and the summary line.
  */
 
 namespace CitOmni\Kernel\Service {
@@ -57,18 +67,90 @@ namespace CitOmni\Kernel\Service {
 
 namespace {
 
-	/** Report a fatal setup problem on STDERR (CLI) or the response (web runner). */
-	function fail(string $message): never {
-		\defined('STDERR') ? \fwrite(\STDERR, $message . "\n") : print($message . "\n");
-		exit(1);
+	if (\PHP_SAPI !== 'cli') {
+		throw new \RuntimeException('CLI only.');
 	}
 
+	\set_error_handler(static function (int $errno, string $errstr, string $errfile, int $errline): bool {
+		// The @ operator removes an error from error_reporting() but not from this handler.
+		if ((\error_reporting() & $errno) === 0) {
+			return false;
+		}
+
+		throw new \ErrorException($errstr, 0, $errno, $errfile, $errline);
+	});
+
+	$passed = 0;
+	$failed = 0;
+	$skipped = 0;
+
+
+	/**
+	 * Record a passed case: a PASS line on STDOUT.
+	 *
+	 * @param string $name Case name.
+	 * @return void
+	 */
+	function pass(string $name): void {
+		global $passed;
+		++$passed;
+		\fwrite(\STDOUT, "PASS {$name}\n");
+	}
+
+
+	/**
+	 * Record a failed case: a FAIL line on STDERR.
+	 *
+	 * @param string $name Case name.
+	 * @param string $message What went wrong.
+	 * @return void
+	 */
+	function fail(string $name, string $message): void {
+		global $failed;
+		++$failed;
+		\fwrite(\STDERR, "FAIL {$name} - {$message}\n");
+	}
+
+
+	/**
+	 * Record an optional case that cannot run here: a SKIP line on STDOUT.
+	 *
+	 * @param string $reason Why the case is skipped.
+	 * @return void
+	 */
+	function skip(string $reason): void {
+		global $skipped;
+		++$skipped;
+		\fwrite(\STDOUT, "SKIP {$reason}\n");
+	}
+
+
+	/**
+	 * Print the summary line and end the suite; exit code 1 when a case failed.
+	 *
+	 * @return never
+	 */
+	function done(): never {
+		global $passed, $failed, $skipped;
+		\fwrite(\STDOUT, "{$passed} passed, {$failed} failed" . ($skipped > 0 ? ", {$skipped} skipped" : '') . "\n");
+		exit($failed === 0 ? 0 : 1);
+	}
+
+
+	// An exception nothing caught ends the suite, but the totals still reach the runner.
+	\set_exception_handler(static function (\Throwable $e): never {
+		fail('suite aborted by an uncaught exception', $e::class . ': ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
+		done();
+	});
+
 	if (\PHP_VERSION_ID < 80500) {
-		fail('PHP 8.5 or newer is required.');
+		fail('setup', 'PHP 8.5 or newer is required.');
+		done();
 	}
 
 	if (!\extension_loaded('gd')) {
-		fail('ext-gd is required.');
+		fail('setup', 'ext-gd is required.');
+		done();
 	}
 
 	\spl_autoload_register(static function (string $class): void {
@@ -90,36 +172,40 @@ namespace {
 		}
 	});
 
-	$checks = 0;
 
-
-	/** Check a condition independently of zend.assertions. */
-	function check(bool $condition, string $message): void {
-		global $checks;
-		++$checks;
-
-		if (!$condition) {
-			throw new \RuntimeException('FAILED: ' . $message);
-		}
+	/**
+	 * Check a condition independently of zend.assertions; one PASS or FAIL line.
+	 *
+	 * @param bool $condition Condition that must hold.
+	 * @param string $name Case name.
+	 * @return void
+	 */
+	function check(bool $condition, string $name): void {
+		$condition ? pass($name) : fail($name, 'check failed');
 	}
 
 
 	/**
-	 * Check that a callback throws a given exception class.
+	 * Check that a callback throws a given exception class; one PASS or FAIL line.
+	 *
+	 * When nothing is thrown the case fails and a LogicException stands in for the
+	 * exception, so a caller that inspects it fails loudly instead of silently.
 	 *
 	 * @param class-string<\Throwable> $class Expected exception class.
+	 * @param callable $callback Code expected to throw.
+	 * @param string $name Case name.
 	 * @return \Throwable The caught exception.
 	 */
-	function expectThrows(string $class, callable $callback, string $message): \Throwable {
+	function expectThrows(string $class, callable $callback, string $name): \Throwable {
 		try {
 			$callback();
 		} catch (\Throwable $e) {
-			check($e instanceof $class, $message . ' (expected ' . $class . ', got ' . $e::class . ': ' . $e->getMessage() . ')');
+			$e instanceof $class ? pass($name) : fail($name, 'expected ' . $class . ', got ' . $e::class . ': ' . $e->getMessage());
 			return $e;
 		}
 
-		check(false, $message . ' (expected ' . $class . ', nothing thrown)');
-		throw new \LogicException('unreachable');
+		fail($name, 'expected ' . $class . ', nothing thrown');
+		return new \LogicException('Nothing thrown: ' . $name);
 	}
 
 
@@ -185,6 +271,9 @@ namespace {
 		\mkdir($dir, 0777, true);
 
 		\register_shutdown_function(static function () use ($dir): void {
+			// Best-effort cleanup: an entry that cannot be removed must not raise ErrorException here.
+			\set_error_handler(static fn(): bool => true);
+
 			$iterator = new \RecursiveIteratorIterator(
 				new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
 				\RecursiveIteratorIterator::CHILD_FIRST
@@ -229,16 +318,13 @@ namespace {
 	/** Decode bytes with GD for assertions. */
 	function gd(string $data): \GdImage {
 		$image = \imagecreatefromstring($data);
-		check($image instanceof \GdImage, 'test helper could decode output');
+
+		if (!$image instanceof \GdImage) {
+			throw new \RuntimeException('Test helper could not decode output.');
+		}
+
 		\imagesavealpha($image, true);
 
 		return $image;
-	}
-
-
-	/** Print the summary line for a script. */
-	function done(string $name): void {
-		global $checks;
-		echo $name . ': ' . $checks . " checks passed.\n";
 	}
 }

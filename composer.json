@@ -50,15 +50,7 @@
         }
     },
     "scripts": {
-        "test": [
-            "@php tests/geometry_test.php",
-            "@php tests/header_test.php",
-            "@php tests/service_test.php",
-            "@php tests/write_test.php",
-            "@php tests/imagick_test.php",
-            "@php tests/color_test.php",
-            "@php tests/captcha_test.php"
-        ]
+        "test": "@php tests/run.php"
     },
     "config": {
         "sort-packages": true

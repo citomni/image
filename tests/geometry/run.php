@@ -17,9 +17,12 @@ declare(strict_types=1);
  * Regression checks for Util\Geometry: fit planning, orientation composition,
  * and display-to-stored plan mapping. Orientation semantics are checked
  * against an independent pixel-grid simulation, not against Geometry itself.
+ *
+ * Usage:
+ *   php tests/geometry/run.php
  */
 
-require __DIR__ . '/bootstrap.php';
+require \dirname(__DIR__) . '/bootstrap.php';
 
 use CitOmni\Image\Enum\ImageFit;
 use CitOmni\Image\Util\Geometry;
@@ -138,4 +141,4 @@ check($fit(4000, 3000, 100, 900, ImageFit::Fill) === [0, 0, 4000, 3000, 100, 900
 check($fit(400, 300, 1000, 100, ImageFit::Fill) === [0, 0, 400, 300, 400, 100], 'fill clamps per axis');
 check($fit(400, 300, 1000, 100, ImageFit::Fill, true) === [0, 0, 400, 300, 1000, 100], 'fill upscale');
 
-done('geometry_test');
+done();

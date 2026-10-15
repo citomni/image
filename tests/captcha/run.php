@@ -17,10 +17,13 @@ declare(strict_types=1);
  * Checks for the CaptchaImage service: cfg and option validation, codes,
  * PNG output, seeded determinism, glyph placement against real FreeType
  * rendering, and answer verification. Needs GD with FreeType; without it only
- * the capability failure is checked.
+ * the capability failure is checked and the rendering cases are skipped.
+ *
+ * Usage:
+ *   php tests/captcha/run.php
  */
 
-require __DIR__ . '/bootstrap.php';
+require \dirname(__DIR__) . '/bootstrap.php';
 
 use CitOmni\Image\Boot\Registry;
 use CitOmni\Image\Exception\ImageCapabilityException;
@@ -35,9 +38,8 @@ check((Registry::MAP_COMMON['captchaImage'] ?? null) === CaptchaImage::class, 'c
 
 if (!\function_exists('imagettftext')) {
 	expectThrows(ImageCapabilityException::class, static fn() => $captcha->create(), 'missing FreeType fails explicitly, no bitmap-font fallback');
-	echo "captcha_test: rendering skipped (GD without FreeType).\n";
-	done('captcha_test');
-	exit(0);
+	skip('captcha rendering: GD without FreeType');
+	done();
 }
 
 /** Whether every pixel of a region is black (GD crops an all-black image to nothing). */
@@ -240,4 +242,4 @@ check(!$captcha->verify("K7MPX\xFF", "K7MPX\xFF"), 'invalid UTF-8 expected code'
 $generated = $captcha->create();
 check($captcha->verify($generated['code'], \strtolower($generated['code'])), 'generated code verifies');
 
-done('captcha_test');
+done();

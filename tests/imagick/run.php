@@ -22,10 +22,13 @@ declare(strict_types=1);
  * output semantics, first-frame decoding, backend selection, overlays, and
  * identical public semantics on both backends.
  *
- * Skips (exit 0) when ext-imagick is not loaded.
+ * Reports one SKIP and passes when ext-imagick is not loaded.
+ *
+ * Usage:
+ *   php tests/imagick/run.php
  */
 
-require __DIR__ . '/bootstrap.php';
+require \dirname(__DIR__) . '/bootstrap.php';
 
 use CitOmni\Image\Backend\ImagickBackend;
 use CitOmni\Image\Enum\ImageFormat;
@@ -36,8 +39,8 @@ use CitOmni\Image\Tests\Support\RestrictedBackend;
 use CitOmni\Image\Util\ProbeSamples;
 
 if (!imagickAvailable()) {
-	echo "imagick_test: skipped (ext-imagick not loaded).\n";
-	exit(0);
+	skip('imagick suite: ext-imagick not loaded');
+	done();
 }
 
 $imagick = new Image(testApp(['backends' => ['imagick']]));
@@ -59,9 +62,7 @@ $corners = [
 // -- Capabilities and round-trips -------------------------------------------------------
 
 $caps = $imagick->capabilities();
-check($caps['backends']['imagick']['available'] === true && \is_string($caps['backends']['imagick']['version']), 'imagick reported');
-echo '  info: ' . $caps['backends']['imagick']['version'] . "\n";
-echo '  info: imagick encode: ' . \implode(', ', \array_keys(\array_filter($caps['encode']))) . "\n";
+check($caps['backends']['imagick']['available'] === true && \is_string($caps['backends']['imagick']['version']), 'imagick reported (' . (string)$caps['backends']['imagick']['version'] . ')');
 
 $quadPng = F::encode(F::quadrants(65, 49), 'png');
 $alpha = F::alphaPng();
@@ -111,9 +112,9 @@ $heic = match (true) {
 };
 
 if ($heic === null) {
-	echo "  info: heic tests skipped (no heic decoder)\n";
+	skip('heic container tests: no heic decoder');
 } else {
-	echo '  info: heic tests use ' . ($caps['encode']['heic'] === 'imagick' ? 'this runtime\'s heic encoder' : 'the embedded sample (decode-only build)') . "\n";
+	$heicSource = $caps['encode']['heic'] === 'imagick' ? 'runtime encoder' : 'embedded sample, decode-only build';
 
 	// [irot angle, imir mode] => resulting orientation, as libheif decodes them.
 	$transforms = [
@@ -123,7 +124,7 @@ if ($heic === null) {
 	];
 
 	foreach ($transforms as [$angle, $mode, $orientation]) {
-		$label = 'heic irot ' . ($angle ?? '-') . ' imir ' . ($mode ?? '-');
+		$label = "heic ($heicSource) irot " . ($angle ?? '-') . ' imir ' . ($mode ?? '-');
 		$data = F::withHeifTransforms($heic, $angle, $mode);
 		$meta = $imagick->inspectString($data);
 		$expectedSize = $orientation >= 5 ? [49, 65] : [65, 49];
@@ -227,8 +228,6 @@ foreach ($caps['first_frame'] as $format => $backend) {
 	[$out] = $png($imagick, ProbeSamples::multiFrame(ImageFormat::from($format)), [], ['multi_frame' => 'first']);
 	check(near(pixel($out, 32, 24), [255, 0, 0], 40), "reported first-frame support for $format holds");
 }
-
-echo '  info: imagick first frame: ' . \implode(', ', \array_keys(\array_filter($caps['first_frame']))) . "\n";
 
 
 [$out] = $png($imagick, F::animatedGif(), [], ['multi_frame' => 'first']);
@@ -341,9 +340,8 @@ if ($caps['encode']['avif'] === 'imagick') {
 			check([$meta['display_width'], $meta['display_height']] === [$w, $h], "avif {$w}x{$h} exact");
 		} catch (ImageCapabilityException $e) {
 			check(\str_contains($e->getMessage(), 'fails verification'), "avif {$w}x{$h} rejected explicitly");
-			echo "  info: avif {$w}x{$h} rejected by output verification on this runtime\n";
 		}
 	}
 }
 
-done('imagick_test');
+done();

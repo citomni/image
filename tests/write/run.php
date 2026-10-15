@@ -19,9 +19,12 @@ declare(strict_types=1);
  * processing), validation before IO, phase-1 failures (nothing touched),
  * phase-2 failures (exact committed/uncommitted report), encoder
  * verification, and absence of leftover temporary files.
+ *
+ * Usage:
+ *   php tests/write/run.php
  */
 
-require __DIR__ . '/bootstrap.php';
+require \dirname(__DIR__) . '/bootstrap.php';
 
 use CitOmni\Image\Exception\ImageCapabilityException;
 use CitOmni\Image\Exception\ImageTargetExistsException;
@@ -184,4 +187,4 @@ check(\getimagesize("$dir/p2-a.webp")[0] === 100, 'committed target holds the ne
 check(\file_get_contents("$dir/p2-c.png") === 'previous c', 'uncommitted target left untouched');
 check($leftovers() === [], 'commit failure removes remaining temporary files');
 
-done('write_test');
+done();

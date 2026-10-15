@@ -16,9 +16,12 @@ declare(strict_types=1);
 /*
  * Regression checks for Util\ImageHeader: EXIF orientation, multi-frame
  * detection, alpha and ICC flags, truncation detection, and malformed input.
+ *
+ * Usage:
+ *   php tests/header/run.php
  */
 
-require __DIR__ . '/bootstrap.php';
+require \dirname(__DIR__) . '/bootstrap.php';
 
 use CitOmni\Image\Enum\ImageFormat;
 use CitOmni\Image\Tests\Support\ImageFixtures as F;
@@ -126,7 +129,7 @@ foreach ([0 => 1, 1 => 8, 2 => 3, 3 => 6] as $angle => $orientation) {
 	check(heif(F::heifContainer('heic', 40, 30, [['irot', $angle]]))['orientation'] === $orientation, "irot $angle (counter-clockwise) -> orientation $orientation");
 }
 
-// imir semantics as decoded by libheif (verified against ImageMagick in imagick_test.php).
+// imir semantics as decoded by libheif (verified against ImageMagick in tests/imagick/run.php).
 check(heif(F::heifContainer('heic', 40, 30, [['imir', 0]]))['orientation'] === 4, 'imir mode 0 flips top-bottom');
 check(heif(F::heifContainer('heic', 40, 30, [['imir', 1]]))['orientation'] === 2, 'imir mode 1 flips left-right');
 check(heif(F::heifContainer('heic', 40, 30, [['irot', 1], ['imir', 1]]))['orientation'] === 7, 'irot then imir');
@@ -268,4 +271,4 @@ check(truncated(ImageFormat::Gif, \substr($gif, 0, 13)), 'gif without frames tru
 
 check(!truncated(ImageFormat::Png, \substr(F::alphaPng(), 0, 40)), 'png truncation left to the decoder');
 
-done('header_test');
+done();

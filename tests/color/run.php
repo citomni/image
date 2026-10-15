@@ -19,9 +19,12 @@ declare(strict_types=1);
  * management (GD), and real conversions on Imagick checked against
  * LittleCMS reference values. The Imagick part skips without ext-imagick or
  * without verified color management.
+ *
+ * Usage:
+ *   php tests/color/run.php
  */
 
-require __DIR__ . '/bootstrap.php';
+require \dirname(__DIR__) . '/bootstrap.php';
 
 use CitOmni\Image\Color\IccProfile;
 use CitOmni\Image\Color\Profiles;
@@ -290,18 +293,16 @@ expectThrows(\InvalidArgumentException::class, static fn() => $gd->encodeString(
 // -- 4. Color management on Imagick ------------------------------------------------------------
 
 if (!imagickAvailable()) {
-	echo "  info: color management tests skipped (ext-imagick not loaded)\n";
-	done('color_test');
-	exit(0);
+	skip('color management on Imagick: ext-imagick not loaded');
+	done();
 }
 
 $imagick = new Image(testApp(['backends' => ['imagick']]));
 $both = new Image(testApp(['backends' => ['gd', 'imagick']]));
 
 if ($imagick->capabilities()['color_management'] === null) {
-	echo "  info: color management tests skipped (ImageMagick without LittleCMS)\n";
-	done('color_test');
-	exit(0);
+	skip('color management on Imagick: ImageMagick without LittleCMS');
+	done();
 }
 
 check($both->capabilities()['color_management'] === 'imagick', 'imagick provides verified color management');
@@ -426,9 +427,8 @@ if ($heifEncoder !== null) {
 	// Same-format output: the source CICP must not be carried over onto sRGB pixels.
 	$sameFormat = $both->encodeString($nclxP3, ['o' => ['format' => \strtolower($heifEncoder)]])['o']['data'];
 	check($both->inspectString($sameFormat)['color_space'] === 'srgb', "P3 {$heifEncoder} to {$heifEncoder}: output CICP describes sRGB");
-	echo '  info: heif nclx tests use ' . $heifEncoder . "\n";
 } else {
-	echo "  info: heif nclx tests skipped (no heic or avif encoder)\n";
+	skip('heif nclx tests: no heic or avif encoder');
 }
 
 // Policy, routing, overlays, mismatch.
@@ -452,4 +452,4 @@ $gdPixel = pixel(gd($gd->encodeString($srgbPng, ['o' => ['format' => 'png']])['o
 $imPixel = pixel(gd($imagick->encodeString($srgbPng, ['o' => ['format' => 'png']])['o']['data']), 4, 4);
 check($gdPixel === $imPixel, 'sRGB-tagged source: identical pixels on gd and imagick');
 
-done('color_test');
+done();
