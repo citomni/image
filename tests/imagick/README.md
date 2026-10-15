@@ -6,9 +6,11 @@ Checks for the Imagick backend and for GD/Imagick parity. Needs ext-imagick; wit
 php tests/imagick/run.php
 ```
 
-Expected without ext-imagick: `0 passed, 0 failed, 1 skipped`
+Expected: `178 passed, 0 failed`
 
-With ext-imagick the total depends on the codecs the runtime reports (HEIC, AVIF, TIFF and GIF output, first-frame support), so record the total of the reference runtime here. A runtime without a HEIC decoder reports one more SKIP for the HEIC container cases.
+This total is for ImageMagick 7.1.1 with encoders for JPEG, PNG, GIF, WebP, AVIF, BMP and TIFF and a HEIC decoder but no HEIC encoder, so the HEIC container cases use the embedded sample. Without ext-imagick the suite reports one SKIP: `0 passed, 0 failed, 1 skipped`.
+
+With other codecs the total differs: every format the runtime encodes adds four round-trip cases, and a runtime without a HEIC decoder reports one SKIP for the HEIC container cases.
 
 ## Cases
 

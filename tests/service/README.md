@@ -6,9 +6,9 @@ End-to-end checks for the `image` service pinned to the GD backend. Imagick and 
 php tests/service/run.php
 ```
 
-Expected: `206 passed, 0 failed`
+Expected: `209 passed, 0 failed`
 
-This total is for a GD without an AVIF encoder. With one, four AVIF round-trips replace the single "AVIF unsupported" case, so the total is `209 passed, 0 failed`.
+This total is for a GD with an AVIF encoder. Without one, the single "AVIF unsupported" case replaces the four AVIF round-trips, so the total is `206 passed, 0 failed`.
 
 ## Cases
 

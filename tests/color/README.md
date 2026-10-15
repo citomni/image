@@ -6,9 +6,11 @@ Checks for color management: ICC classification, embedded-profile extraction for
 php tests/color/run.php
 ```
 
-Expected without ext-imagick: `96 passed, 0 failed, 1 skipped`
+Expected: `149 passed, 0 failed`
 
-The Imagick part (section 4 of the script) is reported as one SKIP when ext-imagick is not loaded or ImageMagick has no LittleCMS, and the HEIF nclx cases are reported as one SKIP when the runtime has neither a HEIC nor an AVIF encoder. With ext-imagick and LittleCMS the suite runs those cases too and the total is higher; it depends on the codecs the runtime reports, so record the total of the reference runtime here.
+This total is for a runtime with ext-imagick, LittleCMS and an AVIF encoder but no HEIC encoder (ImageMagick 7.1.1). Without ext-imagick the Imagick part is reported as one SKIP and the total is `96 passed, 0 failed, 1 skipped`.
+
+The Imagick part (section 4 of the script) is also reported as one SKIP when ImageMagick has no LittleCMS, and the HEIF nclx cases are reported as one SKIP when the runtime has neither a HEIC nor an AVIF encoder. The total of the Imagick part depends on the codecs the runtime reports; a HEIC encoder adds cases.
 
 ## Cases
 
