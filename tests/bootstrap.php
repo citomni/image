@@ -228,7 +228,8 @@ namespace {
 
 
 	/**
-	 * Merge config like CitOmni: associative arrays deep-merge, lists are replaced.
+	 * Merge config like CitOmni: associative arrays deep-merge, an empty array leaves an
+	 * associative array unchanged, and lists are replaced.
 	 *
 	 * @param array<string,mixed> $base Base config.
 	 * @param array<string,mixed> $override Override config.
@@ -236,6 +237,10 @@ namespace {
 	 */
 	function cfgMerge(array $base, array $override): array {
 		foreach ($override as $key => $value) {
+			if ($value === [] && \is_array($base[$key] ?? null) && !\array_is_list($base[$key])) {
+				continue;
+			}
+
 			$base[$key] = (\is_array($value) && !\array_is_list($value) && isset($base[$key]) && \is_array($base[$key]))
 				? cfgMerge($base[$key], $value)
 				: $value;
